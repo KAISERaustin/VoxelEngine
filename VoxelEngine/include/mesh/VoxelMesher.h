@@ -2,21 +2,29 @@
 
 #include "world/World.h"
 
-#include <vector>
 #include <cstdint>
-#include <glm/glm.hpp>
+#include <vector>
 
-struct Vertex
+struct PackedVertex
 {
-    glm::vec3 pos;
-    glm::vec3 normal;
-    glm::vec2 uv;
-    uint32_t  layer;
+    // bits:
+    //   0..7   = normal index (0:+X, 1:-X, 2:+Y, 3:-Y, 4:+Z, 5:-Z)
+    //   8..15  = texture layer (0=grass, 1=stone)
+    uint32_t nl = 0;
+
+    // position in chunk-local voxel coordinates (0..16)
+    uint16_t px = 0;
+    uint16_t py = 0;
+    uint16_t pz = 0;
+
+    // UV in fixed-point units (see UV_UNIT in mesher and UV_SCALE in shader)
+    uint16_t u = 0;
+    uint16_t v = 0;
 };
 
-uint32_t tex_layer_for_block(BlockType t);
+static_assert(sizeof(PackedVertex) == 16, "PackedVertex should be 16 bytes");
 
-void build_world_mesh(const World& world,
-    const glm::vec3& world_origin,
-    std::vector<Vertex>& out_verts,
+void build_chunk_mesh_greedy(const World& world,
+    int cx, int cy, int cz,
+    std::vector<PackedVertex>& out_verts,
     std::vector<uint32_t>& out_inds);

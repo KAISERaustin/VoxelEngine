@@ -11,6 +11,7 @@
 #include "render/Camera.h"
 #include "render/CameraController.h"
 #include "render/Renderer.h"
+#include "render/Frustum.h"
 #include "world/World.h"
 #include "mesh/VoxelMesher.h"
 
@@ -41,23 +42,44 @@ int main()
         return 1;
     }
 
-    // World on heap (avoids large stack frame warnings)
+    // World on heap (keeps stack small)
     auto world = std::make_unique<World>();
     world->fill_terrain_noise_10_16_grass_stone();
 
+    // Center the world around origin in X/Z
     const glm::vec3 world_origin(
         -static_cast<float>(WORLD_SIZE_X) * 0.5f,
         0.0f,
         -static_cast<float>(WORLD_SIZE_Z) * 0.5f
     );
 
-    std::vector<Vertex> verts;
+    // Build per-chunk meshes (greedy meshing + packed vertices)
+    std::vector<PackedVertex> verts;
     std::vector<uint32_t> inds;
-    build_world_mesh(*world, world_origin, verts, inds);
 
-    std::cout << "World mesh: " << verts.size() << " verts, " << inds.size() << " indices\n";
+    std::vector<ChunkMesh> chunk_meshes;
+    std::vector<glm::vec3> chunk_origins;
 
-    renderer.upload_mesh(verts, inds);
+    chunk_meshes.reserve(WORLD_CHUNKS_X * WORLD_CHUNKS_Y * WORLD_CHUNKS_Z);
+    chunk_origins.reserve(WORLD_CHUNKS_X * WORLD_CHUNKS_Y * WORLD_CHUNKS_Z);
+
+    for (int cz = 0; cz < WORLD_CHUNKS_Z; ++cz) {
+        for (int cy = 0; cy < WORLD_CHUNKS_Y; ++cy) {
+            for (int cx = 0; cx < WORLD_CHUNKS_X; ++cx) {
+
+                build_chunk_mesh_greedy(*world, cx, cy, cz, verts, inds);
+
+                ChunkMesh mesh = renderer.create_chunk_mesh(verts, inds);
+
+                const glm::vec3 chunk_origin =
+                    world_origin +
+                    glm::vec3((float)(cx * CHUNK_X), (float)(cy * CHUNK_Y), (float)(cz * CHUNK_Z));
+
+                chunk_meshes.push_back(mesh);
+                chunk_origins.push_back(chunk_origin);
+            }
+        }
+    }
 
     double last_time = window.time_seconds();
 
@@ -75,16 +97,37 @@ int main()
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        const glm::mat4 model = glm::mat4(1.0f);
         const glm::mat4 view = camera.view_matrix();
         const glm::mat4 proj = camera.projection_matrix(aspect, 0.1f, 2000.0f);
+        const glm::mat4 vp = proj * view;
 
-        const glm::mat4 mvp = proj * view * model;
+        // Frustum for this frame
+        const Frustum fr = Frustum::from_vp(vp);
 
-        renderer.render(mvp);
+        renderer.begin_frame(vp);
+
+        const glm::vec3 chunk_size((float)CHUNK_X, (float)CHUNK_Y, (float)CHUNK_Z);
+
+        for (size_t i = 0; i < chunk_meshes.size(); ++i) {
+            const ChunkMesh& m = chunk_meshes[i];
+            if (!m.is_valid()) continue;
+
+            const glm::vec3 bmin = chunk_origins[i];
+            const glm::vec3 bmax = chunk_origins[i] + chunk_size;
+
+            if (!fr.intersects_aabb(bmin, bmax)) {
+                continue;
+            }
+
+            renderer.draw_chunk(m, chunk_origins[i]);
+        }
 
         window.swap_buffers();
         window.poll_events();
+    }
+
+    for (auto& m : chunk_meshes) {
+        m.destroy();
     }
 
     window.shutdown();

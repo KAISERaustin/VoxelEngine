@@ -30,6 +30,7 @@ target_sources(VoxelEngine
         "${VOXEL_SRC_DIR}/render/GLShader.cpp"
         "${VOXEL_SRC_DIR}/render/TextureArray.cpp"
         "${VOXEL_SRC_DIR}/render/Renderer.cpp"
+        "${VOXEL_SRC_DIR}/render/Frustum.cpp"
 
         "${VOXEL_SRC_DIR}/world/Noise.cpp"
         "${VOXEL_SRC_DIR}/world/World.cpp"
