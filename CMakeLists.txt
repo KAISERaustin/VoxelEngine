@@ -1,15 +1,27 @@
-﻿# CMakeList.txt : Top-level CMake project file, do global configuration
-# and include sub-projects here.
-#
-cmake_minimum_required (VERSION 3.10)
+﻿cmake_minimum_required(VERSION 3.20)
+project(VoxelEngine CXX)
 
-# Enable Hot Reload for MSVC compilers if supported.
-if (POLICY CMP0141)
-  cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Libraries from vcpkg
+find_package(glfw3 CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(glad CONFIG REQUIRED)
+find_package(OpenGL REQUIRED)
+
+# Main executable (adjust path if your .cpp moves)
+add_executable(VoxelEngine
+    VoxelEngine/VoxelEngine.cpp
+)
+
+target_link_libraries(VoxelEngine PRIVATE
+    glfw
+    glm::glm
+    glad::glad
+    OpenGL::GL
+)
+
+if (MSVC)
+    target_compile_options(VoxelEngine PRIVATE /W4 /permissive-)
 endif()
-
-project ("VoxelEngine")
-
-# Include sub-projects.
-add_subdirectory ("VoxelEngine")
